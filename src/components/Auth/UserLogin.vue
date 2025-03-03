@@ -1,7 +1,13 @@
 <template>
   <div class="auth-container">
     <div class="auth-card">
-      <h1 class="auth-title">Log In</h1>
+      <!-- TikTok-like logo or title -->
+      <div class="auth-logo">
+        <img src="@/assets/tiktok-logo.png" alt="TikTok Logo" class="logo" />
+        <h1 class="auth-title">Log In</h1>
+      </div>
+
+      <!-- Login form -->
       <form @submit.prevent="login">
         <input
           v-model="username"
@@ -17,17 +23,21 @@
         />
         <button type="submit" class="auth-button">Log In</button>
       </form>
+
+      <!-- Error message -->
+      <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
+
+      <!-- Sign-up link -->
       <p class="auth-switch">
         Don’t have an account?
-        <router-link to="/signup">Sign Up</router-link>
+        <router-link to="/signup" class="auth-link">Sign Up</router-link>
       </p>
     </div>
   </div>
 </template>
 
 <script>
-// Import Axios correctly
-import axios from 'axios';
+import axios from "axios";
 
 export default {
   name: "UserLogin",
@@ -35,94 +45,172 @@ export default {
     return {
       username: "",
       password: "",
+      errorMessage: "",
+      csrfToken: "", // Store CSRF token
     };
   },
   methods: {
-    async login() {
+    async fetchCsrfToken() {
       try {
-        // Send login request to Django API
-        const response = await axios.post("http://localhost:8000/api/login/", {
-          username: this.username,
-          password: this.password,
+        // Request CSRF token from Django API
+        const response = await axios.get("http://127.0.0.1:8000/api/csrf/", {
+          withCredentials: true, // Important: Allows cookies to be sent
         });
 
-        if (response.status === 200) {
-          // Store JWT token if login is successful
-          localStorage.setItem('access_token', response.data.access_token);
-          alert("Login successful!");
-          this.$router.push("/dashboard");  // Redirect to dashboard
+        console.log("CSRF Response:", response.data); // Debugging
+
+        // Extract CSRF token
+        if (response.data.csrfToken) {
+          this.csrfToken = response.data.csrfToken;
+          console.log("CSRF Token Set:", this.csrfToken);
         } else {
-          alert("Login failed: " + response.data.error);  // Provide error message from response
+          throw new Error("CSRF token missing in response.");
         }
       } catch (error) {
-        console.error("Login error:", error);  // Log the error for debugging
-        if (error.response) {
-          // Display a more specific error message
-          alert("Login failed: " + (error.response.data.error || 'Please try again.'));
-        } else if (error.request) {
-          // Handle case where no response was received from the server
-          alert("No response from server. Please check your network connection.");
-        } else {
-          // Handle any other errors
-          alert("Error: " + error.message);
-        }
+        console.error("CSRF Token fetch error:", error);
+        this.errorMessage = "Failed to fetch CSRF token. Please refresh.";
       }
     },
+
+    async login() {
+      try {
+        // Ensure CSRF token is fetched before login
+        if (!this.csrfToken) {
+          await this.fetchCsrfToken();
+        }
+
+        const response = await axios.post(
+          "http://127.0.0.1:8000/api/login/",
+          {
+            username: this.username,
+            password: this.password,
+          },
+          {
+            headers: {
+              "X-CSRFToken": this.csrfToken, // Send CSRF token in header
+            },
+            withCredentials: true, // Ensure Django receives cookies
+          }
+        );
+
+        if (response.status === 200) {
+          localStorage.setItem("access_token", response.data.access_token);
+          this.errorMessage = "";
+          alert("Login successful!");
+          this.$router.push("/dashboard");
+        } else {
+          this.errorMessage = "Login failed: " + response.data.error;
+        }
+      } catch (error) {
+        console.error("Login error:", error);
+        this.errorMessage =
+          error.response?.data?.error || "Login failed. Please try again.";
+      }
+    },
+  },
+  created() {
+    this.fetchCsrfToken(); // Fetch CSRF token when component loads
   },
 };
 </script>
 
+
+
 <style scoped>
-/* Same styles as UserSignup.vue for consistency */
+/* Container styling */
 .auth-container {
   display: flex;
   justify-content: center;
   align-items: center;
   height: 100vh;
-  background: #f7f7f7;
+  background: linear-gradient(135deg, #fe2c55, #ff6b6b);
 }
+
+/* Card styling */
 .auth-card {
   background: #ffffff;
   padding: 2rem;
-  border-radius: 10px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  border-radius: 15px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
   text-align: center;
   width: 100%;
   max-width: 400px;
 }
-.auth-title {
-  font-size: 24px;
-  font-weight: bold;
+
+/* Logo and title styling */
+.auth-logo {
+  margin-bottom: 1.5rem;
+}
+
+.auth-logo .logo {
+  width: 80px;
+  height: auto;
   margin-bottom: 1rem;
 }
+
+.auth-title {
+  font-size: 28px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 1rem;
+}
+
+/* Input field styling */
 .auth-input {
   width: 100%;
-  padding: 10px;
+  padding: 12px;
   margin: 10px 0;
-  border-radius: 5px;
-  border: 1px solid #ccc;
+  border-radius: 8px;
+  border: 1px solid #ddd;
   font-size: 16px;
+  outline: none;
+  transition: border-color 0.3s;
 }
+
+.auth-input:focus {
+  border-color: #fe2c55;
+}
+
+/* Button styling */
 .auth-button {
   background: #fe2c55;
   color: white;
   border: none;
-  padding: 10px 15px;
+  padding: 12px 15px;
   font-size: 18px;
-  border-radius: 5px;
+  border-radius: 8px;
   width: 100%;
   cursor: pointer;
   transition: background 0.3s;
+  margin-top: 1rem;
 }
+
 .auth-button:hover {
   background: #d81c3b;
 }
-.auth-switch {
+
+/* Error message styling */
+.error-message {
+  color: #ff0000;
+  font-size: 14px;
   margin-top: 1rem;
 }
-.auth-switch a {
+
+/* Sign-up link styling */
+.auth-switch {
+  margin-top: 1.5rem;
+  font-size: 14px;
+  color: #666;
+}
+
+.auth-link {
   color: #fe2c55;
   font-weight: bold;
   text-decoration: none;
+  transition: color 0.3s;
+}
+
+.auth-link:hover {
+  color: #d81c3b;
 }
 </style>

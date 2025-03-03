@@ -4,17 +4,26 @@ import router from "./router"; // Import the router
 import axios from "axios";
 
 const app = createApp(App);
-
-app.use(router); // Attach the router to the app
+app.use(router);
 app.mount("#app");
 
-// Set up the CSRF token globally for every Axios request
-axios.interceptors.request.use((config) => {
-    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-    if (csrfToken) {
-      config.headers["X-CSRFToken"] = csrfToken;
+// Function to fetch CSRF token from Django API
+async function fetchCsrfToken() {
+  try {
+    console.log("Fetching CSRF token...");
+    const response = await axios.get("http://127.0.0.1:8000/api/csrf/", {
+      withCredentials: true, // Required for Django cookies
+    });
+
+    console.log("CSRF Response:", response.data); // Debugging
+
+    if (response.data.csrfToken) {
+      console.log("✅ CSRF Token Received:", response.data.csrfToken);
+      axios.defaults.headers.common["X-CSRFToken"] = response.data.csrfToken; // Store globally
+    } else {
+      console.error("❌ CSRF token missing in response.");
     }
-    return config;
-  });
-
-
+  } catch (error) {
+    console.error("❌ CSRF Token fetch error:", error);
+  }
+}
